@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from typing import Final, Literal, TypedDict, cast
 
 from . import llm_service
-from .causal_graph import CausalGraph
 
 
 RoutingMode = Literal[
@@ -16,7 +16,6 @@ RoutingMode = Literal[
 class RoutingResult(TypedDict):
     """The router's decision for one audience question."""
 
-    question: str
     routing_mode: RoutingMode
     priority_score: int
     reasoning: str
@@ -25,60 +24,64 @@ class RoutingResult(TypedDict):
 VALID_MODES: Final[frozenset[str]] = frozenset(
     {"DIRECT_ANSWER", "HINT", "COUNTER_QUESTION", "DEFER_TO_SPEAKER"}
 )
-PRIORITY_BY_MODE: Final[dict[RoutingMode, int]] = {
-    "DEFER_TO_SPEAKER": 90,
-    "COUNTER_QUESTION": 60,
-    "HINT": 45,
-    "DIRECT_ANSWER": 30,
+SYSTEM_PROMPT: Final[str] = """You are an Agentic Attention Router for a live workshop.
+Evaluate the student's question using the transcript and causal graph edges. Return ONLY a
+valid JSON object with exactly these keys: routing_mode, priority_score, reasoning.
+
+routing_mode must be exactly one of DIRECT_ANSWER, HINT, COUNTER_QUESTION, or
+DEFER_TO_SPEAKER. priority_score must be an integer from 0 to 100 based on urgency
+and student confusion: use a score above 80 for confusion about a core concept and
+below 40 for a basic definition. reasoning must be exactly one sentence explaining
+the selected mode and score while referencing the supplied causal graph edges."""
+
+FALLBACK_RESULT: Final[RoutingResult] = {
+    "routing_mode": "DEFER_TO_SPEAKER",
+    "priority_score": 50,
+    "reasoning": "The routing response was invalid, so the question was deferred while the causal graph edges are reviewed.",
 }
 
-SYSTEM_PROMPT: Final[str] = """You are Attune, a real-time audience-question router for a speaker.
-Classify the audience question into exactly one routing mode:
-- DIRECT_ANSWER: it can be answered clearly from the supplied context.
-- HINT: a small nudge helps the audience member reason it out.
-- COUNTER_QUESTION: ask a clarifying or reflective question first.
-- DEFER_TO_SPEAKER: it requires the speaker's intent, judgment, or a decision outside the context.
 
-Return only one mode name, with no explanation or punctuation."""
+def _parse_routing_result(completion: str) -> RoutingResult:
+    """Validate the JSON-only response expected from the routing model."""
+    try:
+        json_start = completion.index("{")
+        parsed, _ = json.JSONDecoder().raw_decode(completion[json_start:])
+    except (ValueError, json.JSONDecodeError):
+        return FALLBACK_RESULT.copy()
 
+    if not isinstance(parsed, dict) or set(parsed) != set(RoutingResult.__annotations__):
+        return FALLBACK_RESULT.copy()
 
-def _normalise_mode(completion: str) -> RoutingMode:
-    """Convert an LLM completion to a safe, supported routing mode."""
-    candidate = completion.strip().upper().splitlines()[0] if completion.strip() else ""
-    if candidate in VALID_MODES:
-        return cast(RoutingMode, candidate)
-    return "COUNTER_QUESTION"
+    routing_mode = parsed.get("routing_mode")
+    priority_score = parsed.get("priority_score")
+    reasoning = parsed.get("reasoning")
+    if (
+        not isinstance(routing_mode, str)
+        or routing_mode not in VALID_MODES
+        or type(priority_score) is not int
+        or not 0 <= priority_score <= 100
+        or not isinstance(reasoning, str)
+        or not reasoning.strip()
+    ):
+        return FALLBACK_RESULT.copy()
+
+    return {
+        "routing_mode": cast(RoutingMode, routing_mode),
+        "priority_score": priority_score,
+        "reasoning": reasoning.strip(),
+    }
 
 
 async def process_question(
     question: str,
     transcript_context: str,
-    causal_graph: CausalGraph,
+    causal_graph_edges: list[object],
 ) -> RoutingResult:
-    """Classify a question and return its routing decision and priority score.
-
-    The graph is accepted now to preserve the agent boundary for later graph-aware
-    scoring. Its current state is supplied to the classifier as a small signal.
-    """
-    graph_node_count = causal_graph.graph.number_of_nodes()
-    graph_edge_count = causal_graph.graph.number_of_edges()
+    """Use the LLM to choose a question route and priority from workshop context."""
     prompt = (
         f"Transcript context:\n{transcript_context}\n\n"
-        f"Knowledge graph summary: {graph_node_count} concepts, "
-        f"{graph_edge_count} relationships.\n\n"
+        f"Causal graph edges:\n{json.dumps(causal_graph_edges, default=str)}\n\n"
         f"Audience question: {question}"
     )
     completion = await llm_service.get_completion(prompt, SYSTEM_PROMPT)
-    routing_mode = _normalise_mode(completion)
-    priority_score = PRIORITY_BY_MODE[routing_mode]
-
-    reasoning = (
-        f"Classified as {routing_mode}; the sprint heuristic assigns "
-        f"this mode a priority of {priority_score}."
-    )
-    return {
-        "question": question,
-        "routing_mode": routing_mode,
-        "priority_score": priority_score,
-        "reasoning": reasoning,
-    }
+    return _parse_routing_result(completion)
