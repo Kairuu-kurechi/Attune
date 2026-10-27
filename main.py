@@ -51,7 +51,8 @@ class ConnectionManager:
         for websocket in tuple(self._connections.get(session_id, [])):
             try:
                 await websocket.send_json(message)
-            except (RuntimeError, WebSocketDisconnect):
+            except Exception as error:
+                print(f"WebSocket broadcast failed for session {session_id}: {error}")
                 disconnected.append(websocket)
 
         for websocket in disconnected:
@@ -111,8 +112,8 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
 
     try:
         while True:
-            raw_message = await websocket.receive_json()
             try:
+                raw_message = await websocket.receive_json()
                 message = MESSAGE_ADAPTER.validate_python(raw_message)
             except ValidationError as error:
                 await manager.broadcast(
@@ -123,60 +124,80 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
                     },
                 )
                 continue
-
-            if isinstance(message, TranscriptMessage):
-                transcript_chunks.append(message.text)
-                extraction_prompt = (
-                    f"Transcript Chunk:\n{message.text}\n\nExtract the JSON:"
-                )
-                raw_relationships = await get_completion(
-                    extraction_prompt,
-                    RELATIONSHIP_EXTRACTION_PROMPT,
-                )
-                causal_graph.add_relationships(raw_relationships)
+            except WebSocketDisconnect:
+                raise
+            except Exception as error:
+                print(f"Workshop processing failed for session {session_id}: {error}")
                 await manager.broadcast(
                     session_id,
-                    {
-                        "status": "graph_updated",
-                        "transcript": message.text,
-                        "nodes": [
-                            {"id": node, "label": node.replace("_", " ").title()}
-                            for node in causal_graph.graph.nodes()
-                        ],
-                        "edges": [
-                            {
-                                "id": f"{source}-{target}",
-                                "from": source,
-                                "to": target,
-                                "label": edge_data.get("relation", ""),
-                            }
-                            for source, target, edge_data in causal_graph.graph.edges(data=True)
-                        ],
-                    },
+                    {"status": "error", "message": "Agent failed to process"},
                 )
                 continue
 
-            routing_result = await process_question(
-                question=message.text,
-                transcript_context="\n".join(transcript_chunks),
-                causal_graph_edges=[
+            try:
+                if isinstance(message, TranscriptMessage):
+                    transcript_chunks.append(message.text)
+                    extraction_prompt = (
+                        f"Transcript Chunk:\n{message.text}\n\nExtract the JSON:"
+                    )
+                    raw_relationships = await get_completion(
+                        extraction_prompt,
+                        RELATIONSHIP_EXTRACTION_PROMPT,
+                    )
+                    causal_graph.add_relationships(raw_relationships)
+                    await manager.broadcast(
+                        session_id,
+                        {
+                            "status": "graph_updated",
+                            "transcript": message.text,
+                            "nodes": [
+                                {"id": node, "label": node.replace("_", " ").title()}
+                                for node in causal_graph.graph.nodes()
+                            ],
+                            "edges": [
+                                {
+                                    "id": f"{source}-{target}",
+                                    "from": source,
+                                    "to": target,
+                                    "label": edge_data.get("relation", ""),
+                                }
+                                for source, target, edge_data in causal_graph.graph.edges(data=True)
+                            ],
+                        },
+                    )
+                    continue
+
+                routing_result = await process_question(
+                    question=message.text,
+                    transcript_context="\n".join(transcript_chunks),
+                    causal_graph_edges=[
+                        {
+                            "source": source,
+                            "relationship": edge_data.get("relation", ""),
+                            "target": target,
+                        }
+                        for source, target, edge_data in causal_graph.graph.edges(data=True)
+                    ],
+                )
+                await manager.broadcast(
+                    session_id,
                     {
-                        "source": source,
-                        "relationship": edge_data.get("relation", ""),
-                        "target": target,
-                    }
-                    for source, target, edge_data in causal_graph.graph.edges(data=True)
-                ],
-            )
-            await manager.broadcast(
-                session_id,
-                {
-                    "status": "question_routed",
-                    "student_id": message.student_id,
-                    "question": message.text,
-                    **routing_result,
-                },
-            )
+                        "status": "question_routed",
+                        "student_id": message.student_id,
+                        "question": message.text,
+                        "routing_mode": routing_result["routing_mode"],
+                        "priority_score": routing_result["priority_score"],
+                        "reasoning": routing_result["reasoning"],
+                        "root_cause_concept": routing_result["root_cause_concept"],
+                    },
+                )
+            except Exception as error:
+                print(f"Workshop processing failed for session {session_id}: {error}")
+                await manager.broadcast(
+                    session_id,
+                    {"status": "error", "message": "Agent failed to process"},
+                )
     except WebSocketDisconnect:
-        # Session-local graph and transcript data are discarded on disconnect.
+        pass
+    finally:
         manager.disconnect(session_id, websocket)

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Edge } from '@xyflow/react'
 import type { ConceptNodeType } from '@/components/attune/concept-node'
 import type { QueueQuestion, RoutingMode, TranscriptLine } from '@/lib/attune-types'
@@ -22,6 +22,11 @@ type QuestionRoutedMessage = {
   routing_mode: 'DIRECT_ANSWER' | 'HINT' | 'COUNTER_QUESTION' | 'DEFER_TO_SPEAKER'
   priority_score: number
   reasoning: string
+  root_cause_concept: string
+}
+
+function normalizeConcept(value: string): string {
+  return value.trim().toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ')
 }
 
 function toRoutingMode(mode: QuestionRoutedMessage['routing_mode']): RoutingMode {
@@ -122,6 +127,24 @@ export function useAttuneSocket() {
 
         if (message.status === 'question_routed') {
           const routing = toRoutingMode(message.routing_mode)
+        const rootCause = message.root_cause_concept.toLowerCase().trim()
+        setNodes((current) => {
+          console.log('Root cause match:', rootCause, 'Node IDs:', current.map((node) => node.id))
+          return current.map((node) => {
+            const nodeId = node.id.toLowerCase().trim()
+            const nodeLabel = node.data.label.toLowerCase().trim()
+            const matchesRootCause =
+              rootCause !== 'unknown' &&
+              (nodeId === rootCause ||
+                nodeLabel === rootCause ||
+                normalizeConcept(node.id) === normalizeConcept(rootCause) ||
+                normalizeConcept(node.data.label) === normalizeConcept(rootCause))
+            return {
+              ...node,
+              data: { ...node.data, highlighted: matchesRootCause },
+            }
+          })
+        })
           setQuestions((current) => [
             {
               id: `question-${crypto.randomUUID()}`,
@@ -129,7 +152,7 @@ export function useAttuneSocket() {
               question: message.question,
               routing,
               priority: message.priority_score,
-              concept: 'Live workshop',
+              concept: message.root_cause_concept,
               reasoning: message.reasoning,
               studentResponse: toStudentResponse(routing),
               askedAgo: 'just now',
@@ -156,5 +179,9 @@ export function useAttuneSocket() {
     }
   }, [])
 
-  return { connected, nodes, edges, questions, transcriptLines }
+  const dismissQuestion = useCallback((questionId: string) => {
+    setQuestions((current) => current.filter((question) => question.id !== questionId))
+  }, [])
+
+  return { connected, nodes, edges, questions, transcriptLines, dismissQuestion }
 }

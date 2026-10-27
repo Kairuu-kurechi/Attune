@@ -2,7 +2,7 @@ import { Dashboard } from '@/components/attune/dashboard'
 import { useAttuneSocket } from '@/hooks/useAttuneSocket'
 
 function App() {
-  const { connected, nodes, edges, questions, transcriptLines } = useAttuneSocket()
+  const { connected, nodes, edges, questions, transcriptLines, dismissQuestion } = useAttuneSocket()
 
   return (
     <Dashboard
@@ -11,6 +11,7 @@ function App() {
       edges={edges}
       questions={questions}
       transcriptLines={transcriptLines}
+      onResolveQuestion={dismissQuestion}
     />
   )
 }

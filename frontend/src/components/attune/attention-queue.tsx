@@ -8,9 +8,11 @@ import type { QueueQuestion, ViewMode } from '@/lib/attune-types'
 export function AttentionQueue({
   mode,
   questions,
+  onResolve,
 }: {
   mode: ViewMode
   questions: QueueQuestion[]
+  onResolve: (questionId: string) => void
 }) {
 
   const sorted = useMemo(
@@ -42,7 +44,7 @@ export function AttentionQueue({
       >
         <AnimatePresence initial={false} mode="popLayout">
           {sorted.map((q) => (
-            <QuestionCard key={q.id} question={q} mode={mode} />
+            <QuestionCard key={q.id} question={q} mode={mode} onResolve={onResolve} />
           ))}
         </AnimatePresence>
         {questions.length === 0 && (

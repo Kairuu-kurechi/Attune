@@ -8,19 +8,21 @@ import { cn } from '@/lib/utils'
 interface QuestionCardProps {
   question: QueueQuestion
   mode: ViewMode
+  onResolve: (questionId: string) => void
 }
 
 export const QuestionCard = forwardRef<HTMLLIElement, QuestionCardProps>(
-  function QuestionCard({ question, mode }, ref) {
+  function QuestionCard({ question, mode, onResolve }, ref) {
     const meta = routingMeta[question.routing]
     const urgent = question.routing === 'defer'
+    const actionable = question.priority >= 50
 
     return (
       <motion.li
         ref={ref}
         layout
-        initial={{ opacity: 0, x: 80, scale: 0.96 }}
-        animate={{ opacity: 1, x: 0, scale: 1 }}
+        initial={{ opacity: 0, x: 80, scale: 0.96, boxShadow: '0 0 32px rgba(34,211,238,0.7)' }}
+        animate={{ opacity: 1, x: 0, scale: 1, boxShadow: '0 0 0 rgba(34,211,238,0)' }}
         exit={{ opacity: 0, x: 80, scale: 0.96 }}
         transition={{ type: 'spring', stiffness: 260, damping: 26 }}
         className={cn(
@@ -69,7 +71,7 @@ export const QuestionCard = forwardRef<HTMLLIElement, QuestionCardProps>(
           <div className="mt-3 rounded-lg border border-cyan-500/15 bg-cyan-500/[0.06] p-3">
             <p className="mb-1 flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-cyan-300">
               <MessageCircleReply className="size-3" aria-hidden="true" />
-              Attune Response
+              Student View
             </p>
             <p className="text-pretty text-xs leading-relaxed text-zinc-300">
               {question.studentResponse}
@@ -77,16 +79,18 @@ export const QuestionCard = forwardRef<HTMLLIElement, QuestionCardProps>(
           </div>
         )}
 
-        {urgent && mode === 'speaker' && (
+        {actionable && mode === 'speaker' && (
           <div className="mt-3 flex gap-2">
             <button
               type="button"
+              onClick={() => onResolve(question.id)}
               className="flex-1 rounded-md bg-red-500/90 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
             >
               Address now
             </button>
             <button
               type="button"
+              onClick={() => onResolve(question.id)}
               className="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-cyan-400"
             >
               Snooze

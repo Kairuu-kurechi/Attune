@@ -20,6 +20,7 @@ WORKSHOP_SCRIPT = [
         "type": "question",
         "text": "My model keeps bouncing around the minimum. Why is that happening?",
         "student_id": "stu_42",
+        "root_cause_concept": "learning rate",
     },
     {
         "type": "transcript",

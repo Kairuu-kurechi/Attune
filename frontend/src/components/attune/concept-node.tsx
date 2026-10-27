@@ -9,6 +9,7 @@ export type ConceptNodeData = {
   mastery: number
   signals: number
   pulseDelay: number
+  highlighted?: boolean
 }
 
 export type ConceptNodeType = Node<ConceptNodeData, 'concept'>
@@ -59,6 +60,7 @@ function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeType>) {
       className={cn(
         'animate-node-pulse w-48 rounded-xl border border-white/10 bg-zinc-900/80 px-3.5 py-3 backdrop-blur-md transition-transform',
         selected && 'scale-[1.03]',
+        data.highlighted && 'border-red-500 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.8)]',
       )}
       style={
         {

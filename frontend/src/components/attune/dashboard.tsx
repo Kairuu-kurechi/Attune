@@ -14,12 +14,14 @@ export function Dashboard({
   edges,
   questions,
   transcriptLines,
+  onResolveQuestion,
 }: {
   connected: boolean
   nodes: ConceptNodeType[]
   edges: Edge[]
   questions: QueueQuestion[]
   transcriptLines: TranscriptLine[]
+  onResolveQuestion: (questionId: string) => void
 }) {
   const [mode, setMode] = useState<ViewMode>('speaker')
 
@@ -34,7 +36,7 @@ export function Dashboard({
         <h1 className="sr-only">Attune live session dashboard</h1>
         <TranscriptPanel lines={transcriptLines} />
         <CausalGraph nodes={nodes} edges={edges} />
-        <AttentionQueue mode={mode} questions={questions} />
+        <AttentionQueue mode={mode} questions={questions} onResolve={onResolveQuestion} />
       </main>
     </div>
   )
