@@ -17,7 +17,11 @@ export function Dashboard({
   questions,
   transcriptLines,
   onResolveQuestion,
+  onSnoozeQuestion,
   onTranscriptFinal,
+  onGenerateReport,
+  report,
+  reportError,
   sessionId,
   presenterType,
 }: {
@@ -27,7 +31,11 @@ export function Dashboard({
   questions: QueueQuestion[]
   transcriptLines: TranscriptLine[]
   onResolveQuestion: (questionId: string) => void
+  onSnoozeQuestion: (questionId: string) => void
   onTranscriptFinal: (text: string) => boolean
+  onGenerateReport: () => boolean
+  report: string | null
+  reportError: string | null
   sessionId?: string
   presenterType?: PresenterType
 }) {
@@ -40,12 +48,12 @@ export function Dashboard({
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 bg-[radial-gradient(60%_50%_at_20%_0%,rgba(34,211,238,0.08),transparent),radial-gradient(50%_50%_at_90%_10%,rgba(168,85,247,0.08),transparent)]"
       />
-      <DashboardHeader connected={connected} mode={mode} onModeChange={setMode} presenterType={presenterType} persona={persona} sessionId={sessionId} />
+      <DashboardHeader connected={connected} mode={mode} onModeChange={setMode} presenterType={presenterType} persona={persona} sessionId={sessionId} onGenerateReport={onGenerateReport} report={report} reportError={reportError} />
       <main className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[3fr_4fr_3fr] lg:p-6 [&>section]:h-[560px] lg:[&>section]:h-auto">
         <h1 className="sr-only">Attune live session dashboard</h1>
         <TranscriptPanel lines={transcriptLines} title={persona.transcriptLabel} onTranscriptFinal={onTranscriptFinal} />
         <CausalGraph nodes={nodes} edges={edges} title={persona.graphLabel} />
-        <AttentionQueue mode={mode} questions={questions} onResolve={onResolveQuestion} title={persona.queueLabel} />
+        <AttentionQueue mode={mode} questions={questions} onResolve={onResolveQuestion} onSnooze={onSnoozeQuestion} title={persona.queueLabel} />
       </main>
     </div>
   )

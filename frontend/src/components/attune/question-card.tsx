@@ -1,6 +1,6 @@
 import { forwardRef } from 'react'
 import { motion } from 'framer-motion'
-import { Sparkles, MessageCircleReply } from 'lucide-react'
+import { CircleCheck, Sparkles, MessageCircleReply } from 'lucide-react'
 import { PriorityRing } from './priority-ring'
 import { routingMeta, type QueueQuestion, type ViewMode } from '@/lib/attune-types'
 import { cn } from '@/lib/utils'
@@ -9,12 +9,14 @@ interface QuestionCardProps {
   question: QueueQuestion
   mode: ViewMode
   onResolve: (questionId: string) => void
+  onSnooze: (questionId: string) => void
 }
 
 export const QuestionCard = forwardRef<HTMLLIElement, QuestionCardProps>(
-  function QuestionCard({ question, mode, onResolve }, ref) {
+  function QuestionCard({ question, mode, onResolve, onSnooze }, ref) {
     const meta = routingMeta[question.routing]
-    const urgent = question.routing === 'defer'
+    const resolved = question.status === 'resolved'
+    const urgent = question.routing === 'defer' && !resolved
     const actionable = question.priority >= 50
 
     return (
@@ -29,6 +31,7 @@ export const QuestionCard = forwardRef<HTMLLIElement, QuestionCardProps>(
           'relative shrink-0 overflow-hidden rounded-xl border border-l-2 border-white/[0.08] bg-zinc-900/60 p-4 backdrop-blur-md',
           meta.accent,
           urgent && 'shadow-[0_0_32px_-12px_rgba(239,68,68,0.6)]',
+          resolved && 'border-emerald-500/50 bg-emerald-500/[0.06] opacity-55',
         )}
       >
         <div className="flex items-start gap-3">
@@ -44,6 +47,7 @@ export const QuestionCard = forwardRef<HTMLLIElement, QuestionCardProps>(
                 {meta.label}
               </span>
               <span className="text-[11px] text-zinc-500">{question.concept}</span>
+              {resolved && <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300"><CircleCheck className="size-3" />Resolved</span>}
             </div>
             <p className="mt-1.5 text-[11px] text-zinc-500">
               <span className="text-zinc-400">{question.student}</span>
@@ -84,14 +88,16 @@ export const QuestionCard = forwardRef<HTMLLIElement, QuestionCardProps>(
             <button
               type="button"
               onClick={() => onResolve(question.id)}
-              className="flex-1 rounded-md bg-red-500/90 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400"
+              disabled={resolved}
+              className="flex-1 rounded-md bg-red-500/90 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-red-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-400 disabled:cursor-not-allowed disabled:bg-emerald-500/50"
             >
-              Address now
+              {resolved ? 'Addressed' : 'Address now'}
             </button>
             <button
               type="button"
-              onClick={() => onResolve(question.id)}
-              className="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-cyan-400"
+              onClick={() => onSnooze(question.id)}
+              disabled={resolved}
+              className="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/[0.06] focus-visible:outline-2 focus-visible:outline-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Snooze
             </button>

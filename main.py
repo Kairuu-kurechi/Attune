@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Annotated, Final, Literal, TypeAlias
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -29,11 +30,15 @@ class ConnectionManager:
 
     def __init__(self) -> None:
         self._connections: dict[str, list[WebSocket]] = {}
+        self._transcript_chunks: dict[str, list[str]] = {}
+        self._routed_questions: dict[str, list[dict[str, object]]] = {}
 
     async def connect(self, session_id: str, websocket: WebSocket) -> None:
         """Accept and register a client for a workshop session."""
         await websocket.accept()
         self._connections.setdefault(session_id, []).append(websocket)
+        self._transcript_chunks.setdefault(session_id, [])
+        self._routed_questions.setdefault(session_id, [])
 
     def disconnect(self, session_id: str, websocket: WebSocket) -> None:
         """Remove a disconnected client and clean up empty sessions."""
@@ -44,6 +49,24 @@ class ConnectionManager:
             connections.remove(websocket)
         if not connections:
             del self._connections[session_id]
+            self._transcript_chunks.pop(session_id, None)
+            self._routed_questions.pop(session_id, None)
+
+    def add_transcript(self, session_id: str, text: str) -> None:
+        """Store a transcript chunk for the active session report."""
+        self._transcript_chunks.setdefault(session_id, []).append(text)
+
+    def transcript_context(self, session_id: str) -> str:
+        """Return all transcript chunks for a session as one context string."""
+        return "\n".join(self._transcript_chunks.get(session_id, []))
+
+    def add_routed_question(self, session_id: str, question: dict[str, object]) -> None:
+        """Store a routed audience question for the active session report."""
+        self._routed_questions.setdefault(session_id, []).append(question)
+
+    def routed_questions(self, session_id: str) -> list[dict[str, object]]:
+        """Return a snapshot of all routed questions for a session."""
+        return list(self._routed_questions.get(session_id, []))
 
     async def broadcast(self, session_id: str, message: dict[str, object]) -> None:
         """Send a session update to every connected client."""
@@ -60,6 +83,10 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+# The graph belongs to the workshop session, rather than to an individual
+# WebSocket. This lets speakers and attendees contribute to and query the same
+# causal context while they are connected to the same session ID.
+session_graphs: dict[str, CausalGraph] = {}
 
 
 class TranscriptMessage(BaseModel):
@@ -77,8 +104,14 @@ class QuestionMessage(BaseModel):
     student_id: str = Field(default="attendee", min_length=1)
 
 
+class GenerateReportMessage(BaseModel):
+    """Request a post-session audience-attention report."""
+
+    type: Literal["generate_report"]
+
+
 IncomingMessage: TypeAlias = Annotated[
-    TranscriptMessage | QuestionMessage,
+    TranscriptMessage | QuestionMessage | GenerateReportMessage,
     Field(discriminator="type"),
 ]
 MESSAGE_ADAPTER: Final[TypeAdapter[IncomingMessage]] = TypeAdapter(IncomingMessage)
@@ -96,6 +129,11 @@ Format:
 ]
 """
 
+REPORT_SYSTEM_PROMPT: Final[str] = """You are Attune's post-session analyst.
+Using the transcript and routed audience questions, write exactly three concise bullet
+points: what the audience struggled with most, the supporting signal from questions,
+and what the speaker should review next. Be practical and specific."""
+
 
 @app.get("/health")
 async def health() -> dict[str, str]:
@@ -108,8 +146,9 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
     """Receive transcript and question events for one workshop session."""
     await manager.connect(session_id, websocket)
     presenter_type = websocket.query_params.get("presenter_type", "educator")
-    causal_graph = CausalGraph()
-    transcript_chunks: list[str] = []
+    if session_id not in session_graphs:
+        session_graphs[session_id] = CausalGraph()
+    causal_graph = session_graphs[session_id]
 
     try:
         while True:
@@ -136,8 +175,20 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
                 continue
 
             try:
+                if isinstance(message, GenerateReportMessage):
+                    report_prompt = (
+                        f"Presenter type: {presenter_type}\n\n"
+                        f"Transcript:\n{manager.transcript_context(session_id)}\n\n"
+                        f"Routed questions:\n{json.dumps(manager.routed_questions(session_id))}"
+                    )
+                    report = await get_completion(report_prompt, REPORT_SYSTEM_PROMPT)
+                    await websocket.send_json(
+                        {"status": "report_generated", "report": report}
+                    )
+                    continue
+
                 if isinstance(message, TranscriptMessage):
-                    transcript_chunks.append(message.text)
+                    manager.add_transcript(session_id, message.text)
                     extraction_prompt = (
                         f"Transcript Chunk:\n{message.text}\n\nExtract the JSON:"
                     )
@@ -170,7 +221,7 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
 
                 routing_result = await process_question(
                     question=message.text,
-                    transcript_context="\n".join(transcript_chunks),
+                    transcript_context=manager.transcript_context(session_id),
                     causal_graph_edges=[
                         {
                             "source": source,
@@ -181,16 +232,17 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
                     ],
                     presenter_type=presenter_type,
                 )
+                routed_question = {
+                    "student_id": message.student_id,
+                    "question": message.text,
+                    **routing_result,
+                }
+                manager.add_routed_question(session_id, routed_question)
                 await manager.broadcast(
                     session_id,
                     {
                         "status": "question_routed",
-                        "student_id": message.student_id,
-                        "question": message.text,
-                        "routing_mode": routing_result["routing_mode"],
-                        "priority_score": routing_result["priority_score"],
-                        "reasoning": routing_result["reasoning"],
-                        "root_cause_concept": routing_result["root_cause_concept"],
+                        **routed_question,
                     },
                 )
             except Exception as error:

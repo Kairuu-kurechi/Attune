@@ -71,16 +71,21 @@ def _persona_instruction(presenter_type: str) -> str:
     return PERSONA_INSTRUCTIONS["educator"]
 
 
+def _extract_json_object(response_text: str) -> str:
+    """Return the JSON object embedded in model prose or a Markdown code fence."""
+    match = re.search(r"\{.*\}", response_text, re.DOTALL)
+    if match is None:
+        raise ValueError("no JSON object found in model response")
+    return match.group(0)
+
+
 def _parse_routing_result(completion: str) -> RoutingResult:
     """Extract a JSON object from model prose or Markdown and validate it."""
     try:
         # Greedy DOTALL matching deliberately selects the first `{` through the
         # last `}`, stripping Baseten reasoning preambles and ```json fences.
-        match = re.search(r"\{.*\}", completion, re.DOTALL)
-        if match is None:
-            return _fallback_with_log("no JSON object found in model response")
-        parsed = json.loads(match.group(0))
-    except (AttributeError, TypeError, json.JSONDecodeError) as error:
+        parsed = json.loads(_extract_json_object(completion))
+    except (AttributeError, TypeError, ValueError, json.JSONDecodeError) as error:
         return _fallback_with_log(error)
 
     if not isinstance(parsed, dict):

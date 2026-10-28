@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import QRCode from 'react-qr-code'
-import { Clock, Mic, GraduationCap, Share2, X } from 'lucide-react'
+import { Clipboard, Clock, FileText, GraduationCap, Mic, Share2, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { ViewMode } from '@/lib/attune-types'
 import { cn } from '@/lib/utils'
@@ -73,6 +74,9 @@ export function DashboardHeader({
   presenterType,
   persona,
   sessionId,
+  onGenerateReport,
+  report,
+  reportError,
 }: {
   connected: boolean
   mode: ViewMode
@@ -80,9 +84,27 @@ export function DashboardHeader({
   presenterType?: PresenterType
   persona: PersonaConfig
   sessionId?: string
+  onGenerateReport: () => boolean
+  report: string | null
+  reportError: string | null
 }) {
   const [shareOpen, setShareOpen] = useState(false)
-  const shareUrl = sessionId ? `${window.location.origin}/attendee/${sessionId}` : ''
+  const [reportOpen, setReportOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const networkHost = import.meta.env.VITE_NETWORK_IP || 'localhost'
+  const shareUrl = sessionId ? `http://${networkHost}:5173/attendee/${sessionId}` : ''
+
+  function openReport() {
+    setCopied(false)
+    setReportOpen(true)
+    onGenerateReport()
+  }
+
+  async function copyReport() {
+    if (!report) return
+    await navigator.clipboard.writeText(report)
+    setCopied(true)
+  }
 
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-zinc-950/70 px-4 py-3 backdrop-blur-xl lg:px-6">
@@ -130,10 +152,11 @@ export function DashboardHeader({
         </p>
         <SessionStatus />
         {sessionId && <button type="button" onClick={() => setShareOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-purple-400/30 bg-purple-400/10 px-2.5 py-1.5 text-xs font-medium text-purple-200 transition hover:bg-purple-400/20"><Share2 className="size-3.5" />Share with Audience</button>}
+        <button type="button" onClick={openReport} className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-400 px-2.5 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-cyan-300"><FileText className="size-3.5" />End Session</button>
         <ModeToggle mode={mode} onChange={onModeChange} persona={persona} />
       </div>
-      {shareOpen && (
-        <div role="dialog" aria-modal="true" aria-label="Share session with audience" className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+      {shareOpen && createPortal(
+        <div role="dialog" aria-modal="true" aria-label="Share session with audience" className="fixed inset-0 z-[9999] grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6 text-center shadow-2xl">
             <button type="button" onClick={() => setShareOpen(false)} className="absolute right-4 top-4 text-zinc-400 hover:text-zinc-100" aria-label="Close share dialog"><X className="size-5" /></button>
             <h2 className="text-lg font-semibold text-zinc-50">Join this live session</h2>
@@ -142,7 +165,19 @@ export function DashboardHeader({
             <p className="mt-4 break-all rounded-lg bg-zinc-950 p-3 text-xs text-cyan-300">{shareUrl}</p>
           </div>
         </div>
-      )}
+      , document.body)}
+      {reportOpen && createPortal(
+        <div role="dialog" aria-modal="true" aria-label="Post-session report" className="fixed inset-0 z-[9999] grid place-items-center bg-zinc-950/95 p-4 backdrop-blur-xl">
+          <section className="relative w-full max-w-2xl rounded-3xl border border-white/10 bg-zinc-900 p-7 shadow-2xl sm:p-10">
+            <button type="button" onClick={() => setReportOpen(false)} className="absolute right-5 top-5 text-zinc-400 hover:text-zinc-100" aria-label="Close report"><X className="size-5" /></button>
+            <p className="text-xs font-semibold tracking-[0.2em] text-cyan-300">ATTUNE POST-SESSION REPORT</p>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-zinc-50">Audience attention insights</h2>
+            {!report && !reportError && <div className="flex min-h-64 flex-col items-center justify-center gap-4 text-center"><span className="size-10 animate-spin rounded-full border-4 border-cyan-300/20 border-t-cyan-300" /><div><p className="font-medium text-zinc-100">Generating Report...</p><p className="mt-1 text-sm text-zinc-500">Reviewing transcript signals and routed questions.</p></div></div>}
+            {reportError && <div className="mt-8 rounded-2xl border border-red-400/20 bg-red-400/10 p-5 text-sm text-red-200"><p>{reportError}</p><button type="button" onClick={openReport} className="mt-4 rounded-lg border border-red-300/30 px-3 py-2 text-xs font-semibold">Try again</button></div>}
+            {report && <><article className="mt-8 whitespace-pre-wrap rounded-2xl border border-white/10 bg-zinc-950/70 p-6 text-sm leading-7 text-zinc-200">{report}</article><button type="button" onClick={() => void copyReport()} className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-4 py-2.5 text-sm font-semibold text-zinc-950"><Clipboard className="size-4" />{copied ? 'Copied to Clipboard' : 'Copy to Clipboard'}</button></>}
+          </section>
+        </div>
+      , document.body)}
     </header>
   )
 }

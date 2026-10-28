@@ -9,19 +9,21 @@ export function AttentionQueue({
   mode,
   questions,
   onResolve,
+  onSnooze,
   title,
 }: {
   mode: ViewMode
   questions: QueueQuestion[]
   onResolve: (questionId: string) => void
+  onSnooze: (questionId: string) => void
   title: string
 }) {
 
   const sorted = useMemo(
-    () => [...questions].sort((a, b) => b.priority - a.priority),
+    () => [...questions].sort((a, b) => Number(a.status === 'resolved') - Number(b.status === 'resolved') || b.priority - a.priority),
     [questions],
   )
-  const urgentCount = questions.filter((q) => q.routing === 'defer').length
+  const urgentCount = questions.filter((q) => q.routing === 'defer' && q.status === 'active').length
 
   return (
     <GlassPanel
@@ -46,7 +48,7 @@ export function AttentionQueue({
       >
         <AnimatePresence initial={false} mode="popLayout">
           {sorted.map((q) => (
-            <QuestionCard key={q.id} question={q} mode={mode} onResolve={onResolve} />
+            <QuestionCard key={q.id} question={q} mode={mode} onResolve={onResolve} onSnooze={onSnooze} />
           ))}
         </AnimatePresence>
         {questions.length === 0 && (

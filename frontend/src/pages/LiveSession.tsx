@@ -14,7 +14,7 @@ export function LiveSession() {
   const location = useLocation()
   const state = location.state as LocationState | null
   const [presenterType, setPresenterType] = useState<PresenterType | undefined>(state?.presenterType)
-  const { connected, nodes, edges, questions, transcriptLines, dismissQuestion, sendTranscript } = useAttuneSocket(sessionId ?? 'demo_session_1', presenterType)
+  const { connected, nodes, edges, questions, transcriptLines, resolveQuestion, snoozeQuestion, sendTranscript, generateReport, report, reportError } = useAttuneSocket(sessionId ?? 'demo_session_1', presenterType)
 
   useEffect(() => {
     if (!sessionId) return
@@ -46,7 +46,7 @@ export function LiveSession() {
   return (
     <div className="min-h-dvh bg-zinc-950">
       <button onClick={() => navigate('/dashboard')} className="absolute left-4 top-3 z-20 inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-cyan-300"><ArrowLeft className="size-3.5" />Sessions</button>
-      <LiveDashboard connected={connected} nodes={nodes} edges={edges} questions={questions} transcriptLines={transcriptLines} onResolveQuestion={dismissQuestion} onTranscriptFinal={sendTranscript} presenterType={presenterType} sessionId={sessionId} />
+      <LiveDashboard connected={connected} nodes={nodes} edges={edges} questions={questions} transcriptLines={transcriptLines} onResolveQuestion={resolveQuestion} onSnoozeQuestion={snoozeQuestion} onTranscriptFinal={sendTranscript} onGenerateReport={generateReport} report={report} reportError={reportError} presenterType={presenterType} sessionId={sessionId} />
     </div>
   )
 }

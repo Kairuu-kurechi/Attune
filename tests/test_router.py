@@ -18,8 +18,10 @@ async def run_router_demo() -> dict[str, object]:
         "services.router_agent.llm_service.get_completion",
         new=AsyncMock(
             return_value=(
+                "I will evaluate the graph first.\n```json\n"
                 '{"routing_mode":"HINT","priority_score":65,'
                 '"reasoning":"The learning rate controls training stability in the graph."}'
+                "\n```"
             )
         ),
     ):

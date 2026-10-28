@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 export type ConceptNodeData = {
   label: string
   kind: ConceptKind
-  mastery: number
+  comprehension: number
   signals: number
   pulseDelay: number
   highlighted?: boolean
@@ -90,10 +90,10 @@ function ConceptNodeComponent({ data, selected }: NodeProps<ConceptNodeType>) {
       <div className="mt-2.5">
         <div className="mb-1 flex items-center justify-between text-[10px] text-zinc-500">
           <span>Comprehension</span>
-          <span className="font-mono tabular-nums text-zinc-400">{data.mastery}%</span>
+          <span className="font-mono tabular-nums text-zinc-400">{data.comprehension}%</span>
         </div>
         <div className="h-1 overflow-hidden rounded-full bg-white/[0.06]">
-          <div className={cn('h-full rounded-full', style.bar)} style={{ width: `${data.mastery}%` }} />
+          <div className={cn('h-full rounded-full', style.bar)} style={{ width: `${data.comprehension}%` }} />
         </div>
       </div>
       <Handle

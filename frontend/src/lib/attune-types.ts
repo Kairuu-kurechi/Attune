@@ -1,6 +1,7 @@
 export type ViewMode = 'speaker' | 'student'
 
 export type RoutingMode = 'defer' | 'socratic' | 'auto'
+export type QuestionStatus = 'active' | 'resolved'
 
 export interface TranscriptLine {
   id: string
@@ -20,6 +21,7 @@ export interface QueueQuestion {
   reasoning: string
   studentResponse: string
   askedAgo: string
+  status: QuestionStatus
 }
 
 export type ConceptKind = 'foundation' | 'active' | 'misconception' | 'upcoming'
