@@ -7,7 +7,7 @@ load_dotenv()
 
 # Initialize the client with Groq's OpenAI-compatible endpoint
 client = AsyncOpenAI(
-    api_key=os.getenv("GROQ_API_KEY"),
+    api_key=os.getenv("LLM_API_KEY"),
     base_url=os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
 )
 

@@ -190,6 +190,14 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
     return true
   }, [])
 
+  const sendQuestion = useCallback((text: string): boolean => {
+    const question = text.trim()
+    const socket = socketRef.current
+    if (!question || socket?.readyState !== WebSocket.OPEN) return false
+    socket.send(JSON.stringify({ type: 'question', text: question }))
+    return true
+  }, [])
+
   return {
     connected,
     nodes,
@@ -198,6 +206,7 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
     transcriptLines,
     dismissQuestion,
     sendTranscript,
+    sendQuestion,
     presenterType,
   }
 }

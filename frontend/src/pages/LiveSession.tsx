@@ -46,7 +46,7 @@ export function LiveSession() {
   return (
     <div className="min-h-dvh bg-zinc-950">
       <button onClick={() => navigate('/dashboard')} className="absolute left-4 top-3 z-20 inline-flex items-center gap-1 text-xs text-zinc-400 hover:text-cyan-300"><ArrowLeft className="size-3.5" />Sessions</button>
-      <LiveDashboard connected={connected} nodes={nodes} edges={edges} questions={questions} transcriptLines={transcriptLines} onResolveQuestion={dismissQuestion} onTranscriptFinal={sendTranscript} presenterType={presenterType} />
+      <LiveDashboard connected={connected} nodes={nodes} edges={edges} questions={questions} transcriptLines={transcriptLines} onResolveQuestion={dismissQuestion} onTranscriptFinal={sendTranscript} presenterType={presenterType} sessionId={sessionId} />
     </div>
   )
 }

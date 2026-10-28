@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Final, Literal, TypedDict, cast
 
 from . import llm_service
@@ -71,11 +72,15 @@ def _persona_instruction(presenter_type: str) -> str:
 
 
 def _parse_routing_result(completion: str) -> RoutingResult:
-    """Parse and validate the model response without allowing malformed JSON to escape."""
+    """Extract a JSON object from model prose or Markdown and validate it."""
     try:
-        json_start = completion.index("{")
-        parsed, _ = json.JSONDecoder().raw_decode(completion[json_start:])
-    except (AttributeError, ValueError, json.JSONDecodeError) as error:
+        # Greedy DOTALL matching deliberately selects the first `{` through the
+        # last `}`, stripping Baseten reasoning preambles and ```json fences.
+        match = re.search(r"\{.*\}", completion, re.DOTALL)
+        if match is None:
+            return _fallback_with_log("no JSON object found in model response")
+        parsed = json.loads(match.group(0))
+    except (AttributeError, TypeError, json.JSONDecodeError) as error:
         return _fallback_with_log(error)
 
     if not isinstance(parsed, dict):

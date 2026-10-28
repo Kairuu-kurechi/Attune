@@ -74,7 +74,7 @@ class QuestionMessage(BaseModel):
 
     type: Literal["question"]
     text: str = Field(min_length=1)
-    student_id: str = Field(min_length=1)
+    student_id: str = Field(default="attendee", min_length=1)
 
 
 IncomingMessage: TypeAlias = Annotated[

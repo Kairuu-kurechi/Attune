@@ -18,6 +18,7 @@ export function Dashboard({
   transcriptLines,
   onResolveQuestion,
   onTranscriptFinal,
+  sessionId,
   presenterType,
 }: {
   connected: boolean
@@ -27,6 +28,7 @@ export function Dashboard({
   transcriptLines: TranscriptLine[]
   onResolveQuestion: (questionId: string) => void
   onTranscriptFinal: (text: string) => boolean
+  sessionId?: string
   presenterType?: PresenterType
 }) {
   const [mode, setMode] = useState<ViewMode>('speaker')
@@ -38,7 +40,7 @@ export function Dashboard({
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 bg-[radial-gradient(60%_50%_at_20%_0%,rgba(34,211,238,0.08),transparent),radial-gradient(50%_50%_at_90%_10%,rgba(168,85,247,0.08),transparent)]"
       />
-      <DashboardHeader connected={connected} mode={mode} onModeChange={setMode} presenterType={presenterType} persona={persona} />
+      <DashboardHeader connected={connected} mode={mode} onModeChange={setMode} presenterType={presenterType} persona={persona} sessionId={sessionId} />
       <main className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[3fr_4fr_3fr] lg:p-6 [&>section]:h-[560px] lg:[&>section]:h-auto">
         <h1 className="sr-only">Attune live session dashboard</h1>
         <TranscriptPanel lines={transcriptLines} title={persona.transcriptLabel} onTranscriptFinal={onTranscriptFinal} />

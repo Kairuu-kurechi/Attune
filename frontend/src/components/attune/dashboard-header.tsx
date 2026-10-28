@@ -1,4 +1,6 @@
-import { Clock, Mic, GraduationCap } from 'lucide-react'
+import { useState } from 'react'
+import QRCode from 'react-qr-code'
+import { Clock, Mic, GraduationCap, Share2, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { ViewMode } from '@/lib/attune-types'
 import { cn } from '@/lib/utils'
@@ -70,13 +72,18 @@ export function DashboardHeader({
   onModeChange,
   presenterType,
   persona,
+  sessionId,
 }: {
   connected: boolean
   mode: ViewMode
   onModeChange: (mode: ViewMode) => void
   presenterType?: PresenterType
   persona: PersonaConfig
+  sessionId?: string
 }) {
+  const [shareOpen, setShareOpen] = useState(false)
+  const shareUrl = sessionId ? `${window.location.origin}/attendee/${sessionId}` : ''
+
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-zinc-950/70 px-4 py-3 backdrop-blur-xl lg:px-6">
       <div className="flex items-center gap-4">
@@ -122,8 +129,20 @@ export function DashboardHeader({
           {'ML Foundations Workshop · 148 attendees'}
         </p>
         <SessionStatus />
+        {sessionId && <button type="button" onClick={() => setShareOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-purple-400/30 bg-purple-400/10 px-2.5 py-1.5 text-xs font-medium text-purple-200 transition hover:bg-purple-400/20"><Share2 className="size-3.5" />Share with Audience</button>}
         <ModeToggle mode={mode} onChange={onModeChange} persona={persona} />
       </div>
+      {shareOpen && (
+        <div role="dialog" aria-modal="true" aria-label="Share session with audience" className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6 text-center shadow-2xl">
+            <button type="button" onClick={() => setShareOpen(false)} className="absolute right-4 top-4 text-zinc-400 hover:text-zinc-100" aria-label="Close share dialog"><X className="size-5" /></button>
+            <h2 className="text-lg font-semibold text-zinc-50">Join this live session</h2>
+            <p className="mt-2 text-sm text-zinc-400">Scan to ask questions from your phone.</p>
+            <div className="mx-auto mt-5 w-fit rounded-xl bg-white p-3"><QRCode value={shareUrl} size={188} /></div>
+            <p className="mt-4 break-all rounded-lg bg-zinc-950 p-3 text-xs text-cyan-300">{shareUrl}</p>
+          </div>
+        </div>
+      )}
     </header>
   )
 }

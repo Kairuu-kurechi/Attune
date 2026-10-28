@@ -15,13 +15,15 @@ class CausalGraph:
         This cleans the response so we can parse it safely.
         """
         try:
-            # Find the JSON array using regex
+            # Greedy DOTALL matching selects the first `[` through the last `]`,
+            # removing reasoning text and markdown fences around a JSON array.
             match = re.search(r"\[.*\]", raw_text, re.DOTALL)
             if match:
-                return json.loads(match.group(0))
+                parsed = json.loads(match.group(0))
+                return parsed if isinstance(parsed, list) else []
             return []
-        except json.JSONDecodeError:
-            print(f"Failed to parse JSON from: {raw_text}")
+        except (TypeError, json.JSONDecodeError) as error:
+            print(f"Failed to parse relationship JSON: {error}")
             return []
 
     def add_relationships(self, raw_llm_response: str):
