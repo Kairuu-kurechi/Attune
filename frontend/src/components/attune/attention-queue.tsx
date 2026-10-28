@@ -9,10 +9,12 @@ export function AttentionQueue({
   mode,
   questions,
   onResolve,
+  title,
 }: {
   mode: ViewMode
   questions: QueueQuestion[]
   onResolve: (questionId: string) => void
+  title: string
 }) {
 
   const sorted = useMemo(
@@ -24,7 +26,7 @@ export function AttentionQueue({
   return (
     <GlassPanel
       labelledBy="queue-title"
-      title="Priority Attention Queue"
+      title={title}
       icon={<Inbox className="size-3.5" aria-hidden="true" />}
       meta={
         <div className="flex items-center gap-2">

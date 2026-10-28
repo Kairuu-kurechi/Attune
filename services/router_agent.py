@@ -40,6 +40,12 @@ for confusion about a core concept and below 40 for a basic definition. reasonin
 one sentence that references the supplied causal graph edges. root_cause_concept must be
 the most relevant graph concept in lowercase (for example, "learning rate"), or "unknown"."""
 
+PERSONA_INSTRUCTIONS: Final[dict[str, str]] = {
+    "educator": "You are an educational co-pilot. Prioritize direct answers and Socratic hints for student confusion.",
+    "minister": "You are a pastoral co-pilot. Never answer theological questions directly. Route them as DEFER_TO_SPEAKER so the pastor can address them.",
+    "pitch": "You are a sales co-pilot. Prioritize tracking sentiment and flagging objections from investors.",
+}
+
 FALLBACK_RESULT: Final[RoutingResult] = {
     "routing_mode": "DEFER_TO_SPEAKER",
     "priority_score": 50,
@@ -52,6 +58,16 @@ def _fallback_with_log(error: object) -> RoutingResult:
     """Log malformed model output and return a response safe for WebSocket clients."""
     print(f"Router JSON parsing failed: {error}")
     return FALLBACK_RESULT.copy()
+
+
+def _persona_instruction(presenter_type: str) -> str:
+    """Map persisted presenter labels to their routing persona instructions."""
+    normalized_type = presenter_type.strip().lower()
+    if "minister" in normalized_type or "pastor" in normalized_type:
+        return PERSONA_INSTRUCTIONS["minister"]
+    if "pitch" in normalized_type or "persuader" in normalized_type:
+        return PERSONA_INSTRUCTIONS["pitch"]
+    return PERSONA_INSTRUCTIONS["educator"]
 
 
 def _parse_routing_result(completion: str) -> RoutingResult:
@@ -98,6 +114,7 @@ async def process_question(
     question: str,
     transcript_context: str,
     causal_graph_edges: list[object],
+    presenter_type: str = "educator",
 ) -> RoutingResult:
     """Route one audience question, always returning a safe result on LLM failure."""
     prompt = (
@@ -106,7 +123,11 @@ async def process_question(
         f"Audience question: {question}"
     )
     try:
-        completion = await llm_service.get_completion(prompt, SYSTEM_PROMPT)
+        system_prompt = (
+            f"{SYSTEM_PROMPT}\n\nPresenter persona (apply it and make the reasoning reflect this mode):\n"
+            f"{_persona_instruction(presenter_type)}"
+        )
+        completion = await llm_service.get_completion(prompt, system_prompt)
         return _parse_routing_result(completion)
     except Exception as error:
         return _fallback_with_log(error)

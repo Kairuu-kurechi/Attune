@@ -107,6 +107,7 @@ async def health() -> dict[str, str]:
 async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
     """Receive transcript and question events for one workshop session."""
     await manager.connect(session_id, websocket)
+    presenter_type = websocket.query_params.get("presenter_type", "educator")
     causal_graph = CausalGraph()
     transcript_chunks: list[str] = []
 
@@ -178,6 +179,7 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
                         }
                         for source, target, edge_data in causal_graph.graph.edges(data=True)
                     ],
+                    presenter_type=presenter_type,
                 )
                 await manager.broadcast(
                     session_id,

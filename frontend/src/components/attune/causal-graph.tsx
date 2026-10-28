@@ -15,14 +15,16 @@ const nodeTypes = { concept: ConceptNode }
 export function CausalGraph({
   nodes,
   edges,
+  title,
 }: {
   nodes: ConceptNodeType[]
   edges: Edge[]
+  title: string
 }) {
   return (
     <GlassPanel
       labelledBy="graph-title"
-      title="Causal Concept Graph"
+      title={title}
       icon={<Network className="size-3.5" aria-hidden="true" />}
       meta={<span className="font-mono text-[11px] text-zinc-500">{edges.length} causal links</span>}
     >
@@ -38,7 +40,7 @@ export function CausalGraph({
         maxZoom={1.6}
         proOptions={{ hideAttribution: true }}
         style={{ background: 'transparent' }}
-        aria-label="Causal graph of workshop concepts"
+        aria-label={title}
       >
         <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="rgba(255,255,255,0.07)" />
         <Controls showInteractive={false} position="bottom-right" />

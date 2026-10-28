@@ -2,6 +2,8 @@ import { Clock, Mic, GraduationCap } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { ViewMode } from '@/lib/attune-types'
 import { cn } from '@/lib/utils'
+import { presenterLabels, type PresenterType } from '@/lib/presenter'
+import type { PersonaConfig } from '@/lib/persona-config'
 
 function SessionStatus() {
   return (
@@ -12,18 +14,19 @@ function SessionStatus() {
   )
 }
 
-const modes: { value: ViewMode; label: string; icon: typeof Mic }[] = [
-  { value: 'speaker', label: 'Speaker', icon: Mic },
-  { value: 'student', label: 'Student', icon: GraduationCap },
-]
-
 function ModeToggle({
   mode,
   onChange,
+  persona,
 }: {
   mode: ViewMode
   onChange: (mode: ViewMode) => void
+  persona: PersonaConfig
 }) {
+  const modes: { value: ViewMode; label: string; icon: typeof Mic }[] = [
+    { value: 'speaker', label: 'Speaker', icon: Mic },
+    { value: 'student', label: persona.participantModeLabel, icon: GraduationCap },
+  ]
   return (
     <div
       role="radiogroup"
@@ -65,10 +68,14 @@ export function DashboardHeader({
   connected,
   mode,
   onModeChange,
+  presenterType,
+  persona,
 }: {
   connected: boolean
   mode: ViewMode
   onModeChange: (mode: ViewMode) => void
+  presenterType?: PresenterType
+  persona: PersonaConfig
 }) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] bg-zinc-950/70 px-4 py-3 backdrop-blur-xl lg:px-6">
@@ -82,7 +89,9 @@ export function DashboardHeader({
           </span>
           <div className="leading-tight">
             <p className="text-base font-semibold tracking-tight text-zinc-50">Attune</p>
-            <p className="hidden text-[11px] text-zinc-500 sm:block">Agentic Attention Router</p>
+            <p className="hidden text-[11px] text-zinc-500 sm:block">
+              {presenterType ? presenterLabels[presenterType] : 'Agentic Attention Router'}
+            </p>
           </div>
         </div>
 
@@ -103,6 +112,9 @@ export function DashboardHeader({
             {connected ? 'Live Connected' : 'Connecting'}
           </span>
         </div>
+        <span className="rounded-full border border-purple-400/30 bg-purple-400/10 px-2.5 py-1 text-xs font-medium text-purple-200">
+          {persona.modeLabel}
+        </span>
       </div>
 
       <div className="flex items-center gap-2">
@@ -110,7 +122,7 @@ export function DashboardHeader({
           {'ML Foundations Workshop · 148 attendees'}
         </p>
         <SessionStatus />
-        <ModeToggle mode={mode} onChange={onModeChange} />
+        <ModeToggle mode={mode} onChange={onModeChange} persona={persona} />
       </div>
     </header>
   )

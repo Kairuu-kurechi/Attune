@@ -3,8 +3,6 @@ import type { Edge } from '@xyflow/react'
 import type { ConceptNodeType } from '@/components/attune/concept-node'
 import type { QueueQuestion, RoutingMode, TranscriptLine } from '@/lib/attune-types'
 
-const SOCKET_URL = 'ws://127.0.0.1:8000/ws/workshop/demo_session_1'
-
 type BackendGraphNode = { id: string; label?: string }
 type BackendGraphEdge = { id?: string; from: string; to: string; label?: string }
 
@@ -41,7 +39,7 @@ function toStudentResponse(mode: RoutingMode): string {
   return 'Attune suggests reflecting on the concepts just discussed.'
 }
 
-export function useAttuneSocket() {
+export function useAttuneSocket(sessionId: string, presenterType?: string) {
   const socketRef = useRef<WebSocket | null>(null)
   const [nodes, setNodes] = useState<ConceptNodeType[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
@@ -62,7 +60,8 @@ export function useAttuneSocket() {
         return
       }
 
-      const socket = new WebSocket(SOCKET_URL)
+      const socketUrl = `ws://127.0.0.1:8000/ws/workshop/${encodeURIComponent(sessionId)}?${new URLSearchParams({ presenter_type: presenterType ?? 'educator' })}`
+      const socket = new WebSocket(socketUrl)
       socketRef.current = socket
 
       socket.onopen = () => {
@@ -177,11 +176,28 @@ export function useAttuneSocket() {
         socket.close()
       }
     }
-  }, [])
+  }, [sessionId, presenterType])
 
   const dismissQuestion = useCallback((questionId: string) => {
     setQuestions((current) => current.filter((question) => question.id !== questionId))
   }, [])
 
-  return { connected, nodes, edges, questions, transcriptLines, dismissQuestion }
+  const sendTranscript = useCallback((text: string): boolean => {
+    const transcript = text.trim()
+    const socket = socketRef.current
+    if (!transcript || socket?.readyState !== WebSocket.OPEN) return false
+    socket.send(JSON.stringify({ type: 'transcript', text: transcript }))
+    return true
+  }, [])
+
+  return {
+    connected,
+    nodes,
+    edges,
+    questions,
+    transcriptLines,
+    dismissQuestion,
+    sendTranscript,
+    presenterType,
+  }
 }
