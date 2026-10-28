@@ -30,6 +30,7 @@ export function TranscriptPanel({ lines, title, onTranscriptFinal }: TranscriptP
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const listeningRef = useRef(false)
   const restartTimerRef = useRef<number | null>(null)
+  const lastFinalTranscriptRef = useRef<{ text: string; sentAt: number }>({ text: '', sentAt: 0 })
   const onTranscriptFinalRef = useRef(onTranscriptFinal)
   const scrollRef = useRef<HTMLDivElement>(null)
   const listening = microphoneState === 'listening'
@@ -51,7 +52,9 @@ export function TranscriptPanel({ lines, title, onTranscriptFinal }: TranscriptP
       recognition.onend = null
       recognition.onresult = null
       recognition.onerror = null
-      recognition.stop()
+      // Abort on unmount so React Strict Mode cannot leave a prior recognition
+      // instance alive long enough to restart and double-listen.
+      recognition.abort()
     }
   }, [])
 
@@ -79,6 +82,9 @@ export function TranscriptPanel({ lines, title, onTranscriptFinal }: TranscriptP
       recognition.interimResults = true
       recognition.lang = navigator.language || 'en-US'
       recognition.onresult = (event) => {
+        if (event.results.length > 0 && event.results[0][0]) {
+          console.log('Speech Result:', event.results[0][0].transcript)
+        }
         setSpeechError('')
         const interimParts: string[] = []
         for (let index = event.resultIndex; index < event.results.length; index += 1) {
@@ -86,7 +92,19 @@ export function TranscriptPanel({ lines, title, onTranscriptFinal }: TranscriptP
           const text = result[0]?.transcript.trim()
           if (!text) continue
           if (result.isFinal) {
-            onTranscriptFinalRef.current(text)
+            const normalizedText = text.toLowerCase().replace(/\s+/g, ' ')
+            const now = Date.now()
+            const isDuplicate =
+              lastFinalTranscriptRef.current.text === normalizedText &&
+              now - lastFinalTranscriptRef.current.sentAt < 2_000
+            if (isDuplicate) {
+              console.log('Skipping duplicate final transcript:', text)
+              continue
+            }
+            lastFinalTranscriptRef.current = { text: normalizedText, sentAt: now }
+            console.log('Sending final transcript:', text)
+            const sent = onTranscriptFinalRef.current(text)
+            if (!sent) console.error('Transcript was not sent because the WebSocket is not open.')
           } else {
             interimParts.push(text)
           }
@@ -94,7 +112,7 @@ export function TranscriptPanel({ lines, title, onTranscriptFinal }: TranscriptP
         setInterimTranscript(interimParts.join(' '))
       }
       recognition.onerror = (event) => {
-        console.error('Speech error:', event.error)
+        console.error('Speech Error:', event.error)
         const message = speechErrorMessages[event.error] ?? `Speech recognition failed: ${event.error}.`
         setSpeechError(message)
         if (event.error === 'no-speech') return

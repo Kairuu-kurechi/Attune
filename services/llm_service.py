@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+from openai import APIError, APITimeoutError, AsyncOpenAI
 
 # Load environment variables from .env
 load_dotenv()
@@ -9,6 +9,7 @@ load_dotenv()
 client = AsyncOpenAI(
     api_key=os.getenv("LLM_API_KEY"),
     base_url=os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
+    timeout=30.0,
 )
 
 
@@ -27,6 +28,10 @@ async def get_completion(
             ],
             temperature=0.2,  # Lower temperature for more deterministic agentic routing
         )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"ERROR: {str(e)}"
+        return response.choices[0].message.content or ""
+    except (APIError, APITimeoutError, TimeoutError) as error:
+        print(f"LLM API request failed: {error}")
+        return f"ERROR: {error}"
+    except Exception as error:
+        print(f"Unexpected LLM request failure: {error}")
+        return f"ERROR: {error}"

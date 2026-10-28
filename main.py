@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import traceback
 from typing import Annotated, Final, Literal, TypeAlias
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from openai import APIError, APITimeoutError
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from services.causal_graph import CausalGraph
@@ -34,8 +36,7 @@ class ConnectionManager:
         self._routed_questions: dict[str, list[dict[str, object]]] = {}
 
     async def connect(self, session_id: str, websocket: WebSocket) -> None:
-        """Accept and register a client for a workshop session."""
-        await websocket.accept()
+        """Register an already-accepted client for a workshop session."""
         self._connections.setdefault(session_id, []).append(websocket)
         self._transcript_chunks.setdefault(session_id, [])
         self._routed_questions.setdefault(session_id, [])
@@ -87,6 +88,40 @@ manager = ConnectionManager()
 # WebSocket. This lets speakers and attendees contribute to and query the same
 # causal context while they are connected to the same session ID.
 session_graphs: dict[str, CausalGraph] = {}
+# Keep session history independent from live WebSocket connections so a browser
+# refresh does not erase the workshop UI.
+session_transcripts: dict[str, list[str]] = {}
+session_questions: dict[str, list[dict[str, object]]] = {}
+
+
+async def send_processing_error(websocket: WebSocket, error: Exception) -> None:
+    """Report a per-message failure without ending the active receive loop."""
+    print(traceback.format_exc())
+    try:
+        await websocket.send_json({"status": "error", "message": str(error)})
+    except WebSocketDisconnect:
+        raise
+    except Exception as send_error:
+        print(f"Unable to send WebSocket error response: {send_error}")
+
+
+def graph_payload(causal_graph: CausalGraph) -> dict[str, list[dict[str, str]]]:
+    """Serialize one session graph into the frontend's expected shape."""
+    return {
+        "nodes": [
+            {"id": node, "label": node.replace("_", " ").title()}
+            for node in causal_graph.graph.nodes()
+        ],
+        "edges": [
+            {
+                "id": f"{source}-{target}",
+                "from": source,
+                "to": target,
+                "label": edge_data.get("relation", ""),
+            }
+            for source, target, edge_data in causal_graph.graph.edges(data=True)
+        ],
+    }
 
 
 class TranscriptMessage(BaseModel):
@@ -144,11 +179,35 @@ async def health() -> dict[str, str]:
 @app.websocket("/ws/workshop/{session_id}")
 async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
     """Receive transcript and question events for one workshop session."""
-    await manager.connect(session_id, websocket)
+    await websocket.accept()
+    print("BACKEND ACCEPTED WEBSOCKET CONNECTION")
+    print(f"WS CONNECT ATTEMPT: {websocket.url}")
+    try:
+        await manager.connect(session_id, websocket)
+    except Exception as error:
+        print(f"WS CONNECT FAILED for session {session_id}: {error}")
+        return
     presenter_type = websocket.query_params.get("presenter_type", "educator")
+    has_existing_session = (
+        session_id in session_graphs
+        or session_id in session_transcripts
+        or session_id in session_questions
+    )
     if session_id not in session_graphs:
         session_graphs[session_id] = CausalGraph()
+    session_transcripts.setdefault(session_id, [])
+    session_questions.setdefault(session_id, [])
     causal_graph = session_graphs[session_id]
+
+    if has_existing_session:
+        await websocket.send_json(
+            {
+                "status": "session_sync",
+                "transcript": session_transcripts[session_id],
+                "questions": session_questions[session_id],
+                **graph_payload(causal_graph),
+            }
+        )
 
     try:
         while True:
@@ -168,18 +227,15 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
                 raise
             except Exception as error:
                 print(f"Workshop processing failed for session {session_id}: {error}")
-                await manager.broadcast(
-                    session_id,
-                    {"status": "error", "message": "Agent failed to process"},
-                )
+                await send_processing_error(websocket, error)
                 continue
 
             try:
                 if isinstance(message, GenerateReportMessage):
                     report_prompt = (
                         f"Presenter type: {presenter_type}\n\n"
-                        f"Transcript:\n{manager.transcript_context(session_id)}\n\n"
-                        f"Routed questions:\n{json.dumps(manager.routed_questions(session_id))}"
+                        f"Transcript:\n{' '.join(session_transcripts[session_id])}\n\n"
+                        f"Routed questions:\n{json.dumps(session_questions[session_id])}"
                     )
                     report = await get_completion(report_prompt, REPORT_SYSTEM_PROMPT)
                     await websocket.send_json(
@@ -188,40 +244,49 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
                     continue
 
                 if isinstance(message, TranscriptMessage):
+                    print("Processing transcript:", message.text)
+                    # setdefault makes this safe even if session state was
+                    # cleared or the process received a new session ID.
+                    session_transcripts.setdefault(session_id, [])
+                    session_graphs.setdefault(session_id, CausalGraph())
                     manager.add_transcript(session_id, message.text)
+                    session_transcripts[session_id].append(message.text)
                     extraction_prompt = (
                         f"Transcript Chunk:\n{message.text}\n\nExtract the JSON:"
                     )
-                    raw_relationships = await get_completion(
-                        extraction_prompt,
-                        RELATIONSHIP_EXTRACTION_PROMPT,
+                    try:
+                        raw_relationships = await get_completion(
+                            extraction_prompt,
+                            RELATIONSHIP_EXTRACTION_PROMPT,
+                        )
+                    except (APIError, APITimeoutError, TimeoutError) as error:
+                        # Keep the microphone pipeline alive even if the model
+                        # provider is briefly unavailable.
+                        print(f"Graph extraction LLM failed for session {session_id}: {error}")
+                        raw_relationships = "[]"
+                    if raw_relationships.startswith("ERROR:"):
+                        print(f"Graph extraction LLM returned an error: {raw_relationships}")
+                        raw_relationships = "[]"
+                    session_graphs[session_id].add_relationships(raw_relationships)
+                    causal_graph = session_graphs[session_id]
+                    print(
+                        f"Graph extraction complete: {causal_graph.graph.number_of_nodes()} nodes, "
+                        f"{causal_graph.graph.number_of_edges()} edges"
                     )
-                    causal_graph.add_relationships(raw_relationships)
+                    print("Broadcasting graph update")
                     await manager.broadcast(
                         session_id,
                         {
                             "status": "graph_updated",
                             "transcript": message.text,
-                            "nodes": [
-                                {"id": node, "label": node.replace("_", " ").title()}
-                                for node in causal_graph.graph.nodes()
-                            ],
-                            "edges": [
-                                {
-                                    "id": f"{source}-{target}",
-                                    "from": source,
-                                    "to": target,
-                                    "label": edge_data.get("relation", ""),
-                                }
-                                for source, target, edge_data in causal_graph.graph.edges(data=True)
-                            ],
+                            **graph_payload(causal_graph),
                         },
                     )
                     continue
 
                 routing_result = await process_question(
                     question=message.text,
-                    transcript_context=manager.transcript_context(session_id),
+                    transcript_context="\n".join(session_transcripts[session_id]),
                     causal_graph_edges=[
                         {
                             "source": source,
@@ -238,6 +303,7 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
                     **routing_result,
                 }
                 manager.add_routed_question(session_id, routed_question)
+                session_questions[session_id].append(routed_question)
                 await manager.broadcast(
                     session_id,
                     {
@@ -247,10 +313,8 @@ async def workshop_websocket(websocket: WebSocket, session_id: str) -> None:
                 )
             except Exception as error:
                 print(f"Workshop processing failed for session {session_id}: {error}")
-                await manager.broadcast(
-                    session_id,
-                    {"status": "error", "message": "Agent failed to process"},
-                )
+                await send_processing_error(websocket, error)
+                continue
     except WebSocketDisconnect:
         pass
     finally:

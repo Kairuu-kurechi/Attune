@@ -6,6 +6,8 @@ import json
 import re
 from typing import Final, Literal, TypedDict, cast
 
+from openai import APIError, APITimeoutError
+
 from . import llm_service
 
 
@@ -139,5 +141,7 @@ async def process_question(
         )
         completion = await llm_service.get_completion(prompt, system_prompt)
         return _parse_routing_result(completion)
+    except (APIError, APITimeoutError, TimeoutError) as error:
+        return _fallback_with_log(f"LLM request failed: {error}")
     except Exception as error:
         return _fallback_with_log(error)

@@ -3,6 +3,7 @@
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string
   readonly VITE_SUPABASE_ANON_KEY?: string
+  readonly VITE_NETWORK_IP?: string
 }
 
 interface ImportMeta {
@@ -28,6 +29,7 @@ interface SpeechRecognition extends EventTarget {
   onend: (() => void) | null
   start(): void
   stop(): void
+  abort(): void
 }
 
 interface SpeechRecognitionConstructor {

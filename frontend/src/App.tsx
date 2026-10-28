@@ -4,6 +4,7 @@ import { Login } from '@/pages/Login'
 import { Onboarding } from '@/pages/Onboarding'
 import { LiveSession } from '@/pages/LiveSession'
 import { AttendeeView } from '@/pages/AttendeeView'
+import { ReportView } from '@/pages/ReportView'
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/session/:sessionId" element={<LiveSession />} />
         <Route path="/attendee/:sessionId" element={<AttendeeView />} />
+        <Route path="/report/:sessionId" element={<ReportView />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
