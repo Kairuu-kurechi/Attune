@@ -1,18 +1,14 @@
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Dashboard as LiveDashboard } from '@/components/attune/dashboard'
 import { useAttuneSocket } from '@/hooks/useAttuneSocket'
 import type { PresenterType } from '@/lib/presenter'
 import { supabase } from '@/lib/supabase'
 
-type LocationState = { presenterType?: PresenterType }
-
 export function LiveSession() {
   const { sessionId } = useParams<{ sessionId: string }>()
   const navigate = useNavigate()
-  const location = useLocation()
-  const state = location.state as LocationState | null
-  const [presenterType, setPresenterType] = useState<PresenterType | undefined>(state?.presenterType)
+  const [presenterType, setPresenterType] = useState<PresenterType | undefined>()
   const { connected, nodes, edges, questions, transcriptLines, resolveQuestion, resolveConcept, snoozeQuestion, sendTranscript, generateReport, report, reportError } = useAttuneSocket(sessionId ?? 'demo_session_1', presenterType)
 
   useEffect(() => {
@@ -23,21 +19,17 @@ export function LiveSession() {
         navigate('/login')
         return
       }
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('presenter_type')
-        .eq('id', user.id)
-        .maybeSingle()
-      if (!profileError && profile?.presenter_type) {
+      const [{ data: session, error: sessionError }, { data: profile, error: profileError }] = await Promise.all([
+        supabase.from('sessions').select('presenter_type').eq('id', sessionId).maybeSingle(),
+        supabase.from('profiles').select('presenter_type').eq('id', user.id).maybeSingle(),
+      ])
+      // A session persona always wins. The profile remains the safety fallback
+      // for sessions created before presenter_type was introduced.
+      if (!sessionError && session?.presenter_type) {
+        setPresenterType(session.presenter_type as PresenterType)
+      } else if (!profileError && profile?.presenter_type) {
         setPresenterType(profile.presenter_type as PresenterType)
-        return
       }
-      const { data: session, error: sessionError } = await supabase
-        .from('sessions')
-        .select('presenter_type')
-        .eq('id', sessionId)
-        .maybeSingle()
-      if (!sessionError && session?.presenter_type) setPresenterType(session.presenter_type as PresenterType)
     }
     void loadPresenterType()
   }, [navigate, sessionId])

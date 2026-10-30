@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import QRCode from 'react-qr-code'
 import { ArrowLeft, Clipboard, Clock, FileText, GraduationCap, Mic, Share2, X } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -129,6 +130,7 @@ export function DashboardHeader({
       setSaveError(`Unable to save your report: ${error.message}`)
       return
     }
+    toast.success('Report saved to dashboard')
     setReportOpen(false)
     navigate('/dashboard')
   }

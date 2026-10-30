@@ -1,4 +1,5 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { Dashboard } from '@/pages/Dashboard'
 import { Login } from '@/pages/Login'
 import { Onboarding } from '@/pages/Onboarding'
@@ -18,6 +19,7 @@ function App() {
         <Route path="/report/:sessionId" element={<ReportView />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
+      <Toaster theme="dark" richColors position="top-right" />
     </BrowserRouter>
   )
 }
