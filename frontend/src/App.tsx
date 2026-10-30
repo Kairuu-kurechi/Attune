@@ -6,6 +6,7 @@ import { Onboarding } from '@/pages/Onboarding'
 import { LiveSession } from '@/pages/LiveSession'
 import { AttendeeView } from '@/pages/AttendeeView'
 import { ReportView } from '@/pages/ReportView'
+import { Profile } from '@/pages/Profile'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         <Route path="/session/:sessionId" element={<LiveSession />} />
         <Route path="/attendee/:sessionId" element={<AttendeeView />} />
         <Route path="/report/:sessionId" element={<ReportView />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
       <Toaster theme="dark" richColors position="top-right" />

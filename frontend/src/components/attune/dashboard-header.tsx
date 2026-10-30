@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import QRCode from 'react-qr-code'
 import { ArrowLeft, Clipboard, Clock, FileText, GraduationCap, Mic, Share2, X } from 'lucide-react'
@@ -98,9 +98,21 @@ export function DashboardHeader({
   const [copied, setCopied] = useState(false)
   const [savingReport, setSavingReport] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [avatarInitial, setAvatarInitial] = useState('U')
   const navigate = useNavigate()
   const networkHost = import.meta.env.VITE_NETWORK_IP || 'localhost'
   const shareUrl = sessionId ? `http://${networkHost}:5173/attendee/${sessionId}` : ''
+
+  useEffect(() => {
+    async function loadAvatar() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle()
+      const source = (profile?.full_name as string | null)?.trim() || user.email || 'User'
+      setAvatarInitial(source.charAt(0).toUpperCase())
+    }
+    void loadAvatar()
+  }, [])
 
   function openReport() {
     setCopied(false)
@@ -197,6 +209,7 @@ export function DashboardHeader({
         {sessionId && <button type="button" onClick={() => setShareOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-purple-400/30 bg-purple-400/10 px-2.5 py-1.5 text-xs font-medium text-purple-200 transition hover:bg-purple-400/20"><Share2 className="size-3.5" />Share with Audience</button>}
         <button type="button" onClick={openReport} className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-400 px-2.5 py-1.5 text-xs font-semibold text-zinc-950 transition hover:bg-cyan-300"><FileText className="size-3.5" />End Session</button>
         <ModeToggle mode={mode} onChange={onModeChange} persona={persona} />
+        <Link to="/profile" className="grid size-9 place-items-center rounded-full border border-cyan-400/30 bg-cyan-400/10 text-sm font-semibold text-cyan-200 shadow-[0_0_18px_-6px_rgba(34,211,238,0.7)] transition hover:bg-cyan-400/20 focus-visible:outline-2 focus-visible:outline-cyan-400" aria-label="Open profile">{avatarInitial}</Link>
       </div>
       {shareOpen && createPortal(
         <div role="dialog" aria-modal="true" aria-label="Share session with audience" className="fixed inset-0 z-[9999] grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
