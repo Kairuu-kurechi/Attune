@@ -12,6 +12,7 @@ import { getPersonaConfig } from '@/lib/persona-config'
 
 export function Dashboard({
   connected,
+  isAgentProcessing,
   nodes,
   edges,
   questions,
@@ -28,6 +29,7 @@ export function Dashboard({
   onBack,
 }: {
   connected: boolean
+  isAgentProcessing: boolean
   nodes: ConceptNodeType[]
   edges: Edge[]
   questions: QueueQuestion[]
@@ -55,9 +57,9 @@ export function Dashboard({
       <DashboardHeader connected={connected} mode={mode} onModeChange={setMode} presenterType={presenterType} persona={persona} sessionId={sessionId} onGenerateReport={onGenerateReport} report={report} reportError={reportError} onBack={onBack} />
       <main className="relative grid min-h-0 flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[3fr_4fr_3fr] lg:p-6 [&>section]:h-[560px] lg:[&>section]:h-auto">
         <h1 className="sr-only">Attune live session dashboard</h1>
-        <TranscriptPanel lines={transcriptLines} title={persona.transcriptLabel} onTranscriptFinal={onTranscriptFinal} />
+        <TranscriptPanel lines={transcriptLines} title={persona.transcriptLabel} onTranscriptFinal={onTranscriptFinal} isAgentProcessing={isAgentProcessing} />
         <CausalGraph nodes={nodes} edges={edges} title={persona.graphLabel} />
-        <AttentionQueue mode={mode} questions={questions} onResolve={onResolveQuestion} onResolveConcept={onResolveConcept} onSnooze={onSnoozeQuestion} title={persona.queueLabel} />
+        <AttentionQueue mode={mode} questions={questions} onResolve={onResolveQuestion} onResolveConcept={onResolveConcept} onSnooze={onSnoozeQuestion} title={persona.queueLabel} isAgentProcessing={isAgentProcessing} />
       </main>
     </div>
   )

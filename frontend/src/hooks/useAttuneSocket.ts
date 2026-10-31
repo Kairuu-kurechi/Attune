@@ -57,7 +57,11 @@ function toStudentResponse(mode: RoutingMode): string {
   return 'Attune suggests reflecting on the concepts just discussed.'
 }
 
-export function useAttuneSocket(sessionId: string, presenterType?: string) {
+export function useAttuneSocket(
+  sessionId: string,
+  presenterType?: string,
+  enabled = true,
+) {
   const socketRef = useRef<WebSocket | null>(null)
   const isMounted = useRef(false)
   const reconnectTimeout = useRef<number | null>(null)
@@ -67,6 +71,7 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
   const questionsRef = useRef<QueueQuestion[]>([])
   const [transcriptLines, setTranscriptLines] = useState<TranscriptLine[]>([])
   const [connected, setConnected] = useState(false)
+  const [isAgentProcessing, setIsAgentProcessing] = useState(false)
   const [report, setReport] = useState<string | null>(null)
   const [reportError, setReportError] = useState<string | null>(null)
 
@@ -75,6 +80,7 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
   }, [questions])
 
   useEffect(() => {
+    if (!enabled) return
     let connectTimer: number | undefined
     let effectSocket: WebSocket | null = null
     let effectActive = true
@@ -137,6 +143,7 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
         }
 
         if (message.status === 'graph_updated') {
+          setIsAgentProcessing(false)
           setNodes((currentNodes) =>
             message.nodes.map((node, index) => {
               const existingNode = currentNodes.find(
@@ -249,6 +256,7 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
         }
 
         if (message.status === 'question_routed') {
+          setIsAgentProcessing(false)
           const routing = toRoutingMode(message.routing_mode)
         const rootCause = message.root_cause_concept.toLowerCase().trim()
         setNodes((current) => {
@@ -326,7 +334,7 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
         socket.close()
       }
     }
-  }, [sessionId, presenterType])
+  }, [enabled, sessionId, presenterType])
 
   const resolveQuestion = useCallback((questionId: string) => {
     const resolvedQuestion = questionsRef.current.find((question) => question.id === questionId)
@@ -395,6 +403,7 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
     }
     const message = JSON.stringify({ type: 'transcript', text: transcript })
     console.log('SENDING WS MESSAGE:', message)
+    setIsAgentProcessing(true)
     socket.send(message)
     return true
   }, [])
@@ -409,6 +418,7 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
     }
     const message = JSON.stringify({ type: 'question', text: question })
     console.log('SENDING WS MESSAGE:', message)
+    setIsAgentProcessing(true)
     socket.send(message)
     return true
   }, [])
@@ -430,6 +440,7 @@ export function useAttuneSocket(sessionId: string, presenterType?: string) {
 
   return {
     connected,
+    isAgentProcessing,
     nodes,
     edges,
     questions,

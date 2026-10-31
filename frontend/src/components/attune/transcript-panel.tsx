@@ -10,6 +10,7 @@ type TranscriptPanelProps = {
   lines: TranscriptLine[]
   title: string
   onTranscriptFinal: (text: string) => boolean
+  isAgentProcessing: boolean
 }
 
 type MicrophoneState = 'idle' | 'listening' | 'stopped' | 'error'
@@ -23,7 +24,7 @@ const speechErrorMessages: Record<string, string> = {
   aborted: 'Speech recognition was interrupted. Please start listening again.',
 }
 
-export function TranscriptPanel({ lines, title, onTranscriptFinal }: TranscriptPanelProps) {
+export function TranscriptPanel({ lines, title, onTranscriptFinal, isAgentProcessing }: TranscriptPanelProps) {
   const [microphoneState, setMicrophoneState] = useState<MicrophoneState>('idle')
   const [interimTranscript, setInterimTranscript] = useState('')
   const [speechError, setSpeechError] = useState('')
@@ -190,6 +191,7 @@ export function TranscriptPanel({ lines, title, onTranscriptFinal }: TranscriptP
           <div className="flex items-center gap-2 text-xs text-zinc-400">
             {listening ? <Mic className="size-3.5 animate-pulse text-red-400" aria-hidden="true" /> : <MicOff className="size-3.5 text-zinc-500" aria-hidden="true" />}
             <span>{listening ? 'Recording and transcribing' : microphoneState === 'stopped' ? 'Microphone paused' : microphoneState === 'error' ? 'Microphone error' : 'Ready to listen'}</span>
+            {isAgentProcessing && <span className="animate-pulse rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200">Agent is analyzing...</span>}
           </div>
           <button type="button" onClick={listening ? stopListening : startListening} aria-pressed={listening} className={cn('flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-cyan-400', listening ? 'border-red-400/50 bg-red-500/15 text-red-200' : 'border-cyan-400/50 bg-cyan-400/15 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.35)] hover:bg-cyan-400/25')}>
             {listening ? <Pause className="size-3" aria-hidden="true" /> : <Play className="size-3" aria-hidden="true" />}

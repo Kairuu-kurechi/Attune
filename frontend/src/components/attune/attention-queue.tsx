@@ -56,13 +56,14 @@ function ClusterCard({
   )
 }
 
-export function AttentionQueue({ mode, questions, onResolve, onResolveConcept, onSnooze, title }: {
+export function AttentionQueue({ mode, questions, onResolve, onResolveConcept, onSnooze, title, isAgentProcessing }: {
   mode: ViewMode
   questions: QueueQuestion[]
   onResolve: (questionId: string) => void
   onResolveConcept: (concept: string) => void
   onSnooze: (questionId: string) => void
   title: string
+  isAgentProcessing: boolean
 }) {
   const entries = useMemo<QueueEntry[]>(() => {
     const grouped = new Map<string, QueueQuestion[]>()
@@ -82,7 +83,7 @@ export function AttentionQueue({ mode, questions, onResolve, onResolveConcept, o
   const urgentCount = questions.filter((q) => q.routing === 'defer' && q.status === 'active').length
 
   return (
-    <GlassPanel labelledBy="queue-title" title={title} icon={<Inbox className="size-3.5" aria-hidden="true" />} meta={<div className="flex items-center gap-2">{urgentCount > 0 && <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-400">{urgentCount} urgent</span>}<span className="font-mono text-[11px] text-zinc-500">{questions.length} queued</span></div>}>
+    <GlassPanel labelledBy="queue-title" title={title} icon={<Inbox className="size-3.5" aria-hidden="true" />} meta={<div className="flex items-center gap-2">{isAgentProcessing && <span className="animate-pulse rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-200">Agent is analyzing...</span>}{urgentCount > 0 && <span className="rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-400">{urgentCount} urgent</span>}<span className="font-mono text-[11px] text-zinc-500">{questions.length} queued</span></div>}>
       <ul className="scrollbar-thin flex h-full flex-col gap-3 overflow-y-auto overflow-x-hidden p-3" aria-live="polite" aria-label="Routed student questions, sorted by priority">
         <AnimatePresence initial={false} mode="popLayout">
           {entries.map((entry) => entry.kind === 'cluster' ? <ClusterCard key={`cluster:${conceptKey(entry.concept)}`} concept={entry.concept} questions={entry.questions} priority={entry.priority} active={entry.active} mode={mode} onResolve={onResolve} onResolveConcept={onResolveConcept} onSnooze={onSnooze} /> : <QuestionCard key={entry.question.id} question={entry.question} mode={mode} onResolve={onResolve} onSnooze={onSnooze} />)}

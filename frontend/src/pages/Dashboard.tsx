@@ -75,6 +75,7 @@ export function Dashboard() {
     useState<PresenterType | null>(null);
   const [displayName, setDisplayName] = useState("Presenter");
   const [title, setTitle] = useState("");
+  const [slideText, setSlideText] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -163,7 +164,10 @@ export function Dashboard() {
     }
     toast.success("Session created successfully!");
     navigate(`/session/${data.id}`, {
-      state: { presenterType: selectedPresenterType },
+      state: {
+        presenterType: selectedPresenterType,
+        slideText: slideText.trim() || undefined,
+      },
     });
   }
 
@@ -360,6 +364,16 @@ export function Dashboard() {
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="mt-4 block text-sm text-zinc-300">
+              Paste your slide text or lesson outline here (optional)
+              <textarea
+                value={slideText}
+                onChange={(event) => setSlideText(event.target.value)}
+                placeholder="Paste key concepts, agenda items, or lesson notes to pre-build the concept graph."
+                rows={5}
+                className="mt-2 w-full resize-y rounded-xl border border-white/10 bg-zinc-950 px-3 py-2.5 text-sm outline-none placeholder:text-zinc-600 focus:border-cyan-400"
+              />
             </label>
             <button
               disabled={creating || !selectedPresenterType}

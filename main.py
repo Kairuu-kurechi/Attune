@@ -145,6 +145,12 @@ class GenerateReportMessage(BaseModel):
     type: Literal["generate_report"]
 
 
+class SeedSessionRequest(BaseModel):
+    """Slide or outline text used to pre-build a session's concept graph."""
+
+    text: str = Field(min_length=1)
+
+
 IncomingMessage: TypeAlias = Annotated[
     TranscriptMessage | QuestionMessage | GenerateReportMessage,
     Field(discriminator="type"),
@@ -174,6 +180,37 @@ and what the speaker should review next. Be practical and specific."""
 async def health() -> dict[str, str]:
     """Return a lightweight service health response."""
     return {"status": "ok"}
+
+
+@app.post("/api/session/{session_id}/seed")
+async def seed_session(
+    session_id: str,
+    payload: SeedSessionRequest,
+) -> dict[str, object]:
+    """Extract and store a session graph before its WebSocket is opened."""
+    seed_text = payload.text.strip()
+    causal_graph = CausalGraph()
+    try:
+        raw_relationships = await get_completion(
+            f"Slide text or lesson outline:\n{seed_text}\n\nExtract the JSON:",
+            RELATIONSHIP_EXTRACTION_PROMPT,
+        )
+    except (APIError, APITimeoutError, TimeoutError) as error:
+        print(f"Session seed LLM failed for {session_id}: {error}")
+        raw_relationships = "[]"
+
+    if raw_relationships.startswith("ERROR:"):
+        print(f"Session seed LLM returned an error for {session_id}: {raw_relationships}")
+        raw_relationships = "[]"
+    causal_graph.add_relationships(raw_relationships)
+    session_graphs[session_id] = causal_graph
+    session_transcripts[session_id] = [seed_text]
+    session_questions.setdefault(session_id, [])
+    print(
+        f"Seeded session {session_id}: {causal_graph.graph.number_of_nodes()} nodes, "
+        f"{causal_graph.graph.number_of_edges()} edges"
+    )
+    return {"status": "seeded", **graph_payload(causal_graph)}
 
 
 @app.websocket("/ws/workshop/{session_id}")
